@@ -184,8 +184,7 @@ export interface DirectMessageListApi extends Api {
   };
 }
 
-export interface DirectMessage {
-  dmRoomId: number;
+export interface DirectMessageData {
   sender: number;
   content: string;
   createdAt: string;
@@ -193,6 +192,9 @@ export interface DirectMessage {
 
 export interface DirectMessageApi extends Api {
   data: {
-    messages: DirectMessage[];
+    dmRoomId: number;
+    messages: DirectMessageData[];
+    count: number;
+    nextMaxId: number;
   };
 }

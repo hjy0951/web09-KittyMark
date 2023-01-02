@@ -8,10 +8,13 @@ import { defaultInstance } from '../utils';
 const getDirectMessages = async (
   userId: number,
   otherUserId: number,
+  count: number,
+  maxId: string,
+  dmRoomId?: number,
 ): Promise<DirectMessageApi> => {
   const { data }: AxiosResponse<DirectMessageApi, AxiosError> =
     await defaultInstance.get(
-      `/api/dm?userId=${userId}&otherUserId=${otherUserId}`,
+      `/api/dm?userId=${userId}&otherUserId=${otherUserId}&dmRoomId=${dmRoomId}&count=${count}&maxId=${maxId}`,
     );
   return data;
 };

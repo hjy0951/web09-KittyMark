@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
-import { useRecoilValue } from 'recoil';
+import React, { useEffect, useState } from 'react';
+import { useRecoilValue, useSetRecoilState } from 'recoil';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useInfiniteQuery } from 'react-query';
+import { AxiosError } from 'axios';
+import { useInView } from 'react-intersection-observer';
 // recoil
 import user from '../../store/userAtom';
 // style
@@ -10,6 +13,8 @@ import TopBar from '../../components/TopBar/TopBar';
 import NavBar from '../../components/NavBar/NavBar';
 import MessageForm from '../../components/MessageBox/MessageForm';
 import DirectMessage from '../../components/DirectMessage/DirectMessage';
+import { Api, DirectMessageData } from '../../types/responseData';
+import { getDirectMessages } from '../../apis/api/dmApi';
 
 /*
   구현할 내용
@@ -23,8 +28,6 @@ import DirectMessage from '../../components/DirectMessage/DirectMessage';
   4. 채팅방에 들어오거나 새로고침시 항상 가장 아래(최신) 메시지를 볼 수 있도록 useRef 이용
 */
 
-// const testMessage = ['test1', 'test2', 'test3'];
-// const testReceivedMessage = ['test1', 'test2'];
 const testMessage = [
   { isReceived: true, message: 'test1', profileUrl: '' },
   { isReceived: true, message: 'test2', profileUrl: '' },
@@ -48,11 +51,60 @@ const makeDmComponent = (
   });
 };
 
+// const makeDmComponentTest = (messages: DirectMessageData[]) => {
+//   return messages.map((message) => {
+
+//   });
+// };
+
 const DirectMessagePage = () => {
   const { senderName } = useParams();
-  const navigation = useNavigate();
+  const setUserData = useSetRecoilState(user);
   const { userId, userProfileUrl } = useRecoilValue(user);
+  const navigation = useNavigate();
+  const { inView } = useInView();
   const [message, setMessage] = useState<string>('');
+  const requestCount = 10;
+
+  const fetchDirectMessages = async ({ pageParam = -1 }) => {
+    const response = await getDirectMessages(
+      userId,
+      2,
+      requestCount,
+      String(pageParam),
+    );
+    const result = response.data;
+    const nextPage = result.nextMaxId;
+    return {
+      result: result.messages,
+      nextPage,
+      isLast: nextPage < 1,
+    };
+  };
+
+  const infiniteQuery = useInfiniteQuery<
+    { result: DirectMessageData[]; nextPage: number; isLast: boolean },
+    AxiosError<Api>
+  >('messageList', fetchDirectMessages, {
+    getNextPageParam: (lastPage) => {
+      if (!lastPage.isLast) return lastPage.nextPage;
+      return undefined;
+    },
+    refetchOnWindowFocus: false,
+    refetchOnMount: true,
+    refetchOnReconnect: true,
+    retry: 1,
+    onError: (error) => {
+      if (
+        error.response &&
+        error.response.data.statusCode === 401 &&
+        error.response.data.error === 'Unauthorized'
+      ) {
+        setUserData({ userId: -1, userName: '', userProfileUrl: '' });
+        navigation('/');
+      }
+    },
+  });
 
   const onClickSendMessage = () => {
     // TODO: Socket 서버에 메시지 전달
@@ -61,6 +113,12 @@ const DirectMessagePage = () => {
 
   // TODO: 올바르지 않은 유저 이름일 경우 예외 처리 필요
   if (!senderName) return null;
+
+  useEffect(() => {
+    if (inView && infiniteQuery.hasNextPage) {
+      infiniteQuery.fetchNextPage();
+    }
+  }, [inView, infiniteQuery.data]);
 
   return (
     <>
@@ -73,6 +131,7 @@ const DirectMessagePage = () => {
       <S.Body>
         <S.MessageWrapper>
           <S.Container>{makeDmComponent(testMessage)}</S.Container>
+          {/* <S.Container>{makeDmComponent(messages)}</S.Container> */}
         </S.MessageWrapper>
         <MessageForm
           targetId={userId}
